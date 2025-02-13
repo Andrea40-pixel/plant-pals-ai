@@ -25,24 +25,19 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Convert base64 to Blob
-    const byteString = atob(fileData);
-    const arrayBuffer = new ArrayBuffer(byteString.length);
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    for (let i = 0; i < byteString.length; i++) {
-      uint8Array[i] = byteString.charCodeAt(i);
-    }
-    
-    const blob = new Blob([uint8Array], { type: fileType });
-
     // Upload to Supabase Storage
     const fileExt = fileName.split('.').pop()
     const filePath = `${crypto.randomUUID()}.${fileExt}`
     
+    // Convert base64 to Uint8Array for Supabase storage
+    const binaryData = Uint8Array.from(atob(fileData), c => c.charCodeAt(0));
+    
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('plant_images')
-      .upload(filePath, blob)
+      .upload(filePath, binaryData, {
+        contentType: fileType,
+        upsert: false
+      })
 
     if (uploadError) {
       throw new Error('Failed to upload image')
