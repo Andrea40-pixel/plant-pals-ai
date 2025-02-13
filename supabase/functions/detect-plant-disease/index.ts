@@ -13,11 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file')
+    const { fileData, fileName, fileType } = await req.json()
 
-    if (!file) {
-      throw new Error('No file uploaded')
+    if (!fileData || !fileName) {
+      throw new Error('No file data provided')
     }
 
     const apiKey = Deno.env.get('PLANT_API_KEY')
@@ -26,13 +25,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Convert base64 to Blob
+    const byteString = atob(fileData);
+    const arrayBuffer = new ArrayBuffer(byteString.length);
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    for (let i = 0; i < byteString.length; i++) {
+      uint8Array[i] = byteString.charCodeAt(i);
+    }
+    
+    const blob = new Blob([uint8Array], { type: fileType });
+
     // Upload to Supabase Storage
-    const fileExt = file.name.split('.').pop()
+    const fileExt = fileName.split('.').pop()
     const filePath = `${crypto.randomUUID()}.${fileExt}`
     
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('plant_images')
-      .upload(filePath, file)
+      .upload(filePath, blob)
 
     if (uploadError) {
       throw new Error('Failed to upload image')
@@ -83,6 +93,7 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error('Edge function error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

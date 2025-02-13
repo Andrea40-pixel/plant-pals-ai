@@ -29,11 +29,26 @@ const Index = () => {
     setIsAnalyzing(true);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert file to base64
+      const base64File = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            // Remove data URL prefix
+            const base64String = reader.result.split(',')[1];
+            resolve(base64String);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
       const { data, error } = await supabase.functions.invoke('detect-plant-disease', {
-        body: formData,
+        body: {
+          fileData: base64File,
+          fileName: file.name,
+          fileType: file.type
+        }
       });
 
       if (error) throw error;
