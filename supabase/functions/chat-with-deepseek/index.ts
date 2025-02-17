@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +15,13 @@ serve(async (req) => {
     const { messages, diseaseInfo } = await req.json()
 
     const systemMessage = `You are an expert plant disease assistant. Here is the current plant analysis: ${JSON.stringify(diseaseInfo)}. 
-    Use this information to provide accurate, helpful responses about the plant's condition, treatment options, and care instructions.`;
+    Based on this analysis, provide detailed information about:
+    1. The identified disease and its symptoms
+    2. Prevention methods specific to this disease
+    3. Treatment options, both chemical and biological
+    4. Long-term care recommendations
+    
+    Keep your responses focused on practical advice that a plant owner can implement.`;
 
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
