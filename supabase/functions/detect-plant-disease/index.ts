@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { pipeline } from "https://esm.sh/@huggingface/transformers"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
@@ -8,68 +7,115 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Define plant disease categories and their treatments
+const diseaseDatabase = {
+  "Tomato Late Blight": {
+    prevention: [
+      "Ensure good air circulation between plants",
+      "Water at the base of plants, avoid wetting leaves",
+      "Remove infected leaves and destroy them",
+      "Plant resistant varieties"
+    ],
+    chemical: [
+      "Apply copper-based fungicides",
+      "Use preventative fungicide sprays",
+      "Rotate between different fungicide types"
+    ],
+    biological: [
+      "Apply beneficial bacteria like Bacillus subtilis",
+      "Use organic copper sprays",
+      "Maintain healthy soil with compost"
+    ]
+  },
+  "Powdery Mildew": {
+    prevention: [
+      "Space plants properly for air circulation",
+      "Avoid overhead watering",
+      "Remove infected plant debris",
+      "Choose resistant varieties"
+    ],
+    chemical: [
+      "Apply sulfur-based fungicides",
+      "Use potassium bicarbonate sprays",
+      "Apply neem oil solutions"
+    ],
+    biological: [
+      "Use milk spray solution",
+      "Apply compost tea",
+      "Introduce beneficial microorganisms"
+    ]
+  },
+  // Add more diseases as needed
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { fileData } = await req.json()
+    const { fileData } = await req.json();
 
     if (!fileData) {
-      throw new Error('No file data provided')
+      throw new Error('No file data provided');
     }
 
-    console.log('Initializing classification pipeline...');
+    console.log('Processing image...');
 
-    // Initialize the image classification pipeline with a public model
-    const classifier = await pipeline(
-      "image-classification",
-      "onnx-community/mobilenetv4_conv_small.e2400_r224_in1k",
-      { 
-        quantized: false,
-        progress_callback: (x: any) => console.log('Loading model:', x)
-      }
-    );
+    // Call Plant.id API for disease detection
+    const response = await fetch('https://api.plant.id/v2/health_assessment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Api-Key': Deno.env.get('PLANT_API_KEY') || '',
+      },
+      body: JSON.stringify({
+        images: [fileData],
+        modifiers: ["similar_images"],
+        disease_details: ["description", "treatment"],
+      }),
+    });
 
-    console.log('Model loaded successfully');
+    const data = await response.json();
+    console.log('API Response:', JSON.stringify(data, null, 2));
 
-    // Convert base64 to image URL for the model
-    const imageUrl = `data:image/jpeg;base64,${fileData}`;
-    
-    // Perform classification
-    console.log('Starting image classification...');
-    const predictions = await classifier(imageUrl);
-    console.log('Classification complete:', predictions);
-    
-    // Map the predictions to plant conditions
-    const diseases = predictions
-      .filter((pred: any) => pred.score > 0.1) // Filter out low confidence predictions
-      .map((pred: any) => ({
-        name: pred.label,
-        probability: pred.score,
-        treatment: {
-          prevention: [
-            "Ensure proper plant spacing for good air circulation",
-            "Water at the base of plants to keep leaves dry",
-            "Remove and destroy infected plant debris",
-            "Use disease-resistant varieties when possible"
-          ],
-          chemical: [
-            "Apply appropriate fungicides as recommended",
-            "Use copper-based sprays for bacterial infections",
-            "Follow local agricultural extension service recommendations"
-          ],
-          biological: [
-            "Introduce beneficial microorganisms to the soil",
-            "Use organic composts to boost plant immunity",
-            "Practice crop rotation to prevent disease buildup"
-          ]
-        }
-      }));
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to analyze image');
+    }
 
+    // Process and enhance the API response
+    const diseases = data.health_assessment.diseases.map((disease: any) => {
+      const diseaseName = disease.name;
+      const defaultTreatment = {
+        prevention: [
+          "Ensure proper plant spacing",
+          "Maintain good air circulation",
+          "Water at the base of plants",
+          "Remove infected plant material"
+        ],
+        chemical: [
+          "Apply appropriate fungicides",
+          "Use disease-specific treatments",
+          "Follow local guidelines"
+        ],
+        biological: [
+          "Use organic amendments",
+          "Introduce beneficial organisms",
+          "Apply compost tea"
+        ]
+      };
+
+      return {
+        name: diseaseName,
+        probability: disease.probability,
+        treatment: diseaseDatabase[diseaseName] || defaultTreatment
+      };
+    });
+
+    // Sort by probability and take top 3
+    diseases.sort((a, b) => b.probability - a.probability);
     const result = {
-      diseases: diseases.slice(0, 3) // Return top 3 predictions
+      diseases: diseases.slice(0, 3)
     };
 
     console.log('Final results:', result);
