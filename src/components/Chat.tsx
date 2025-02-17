@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import ChatMessage from './ChatMessage';
 
 interface DiseaseResult {
@@ -23,6 +24,7 @@ interface Message {
   text: string;
   isAi: boolean;
   timestamp: Date;
+  role?: 'user' | 'assistant';
 }
 
 interface ChatProps {
@@ -32,57 +34,71 @@ interface ChatProps {
 const Chat: React.FC<ChatProps> = ({ diseaseResult }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    if (diseaseResult) {
+      const initialMessage: Message = {
+        text: "Hello! I've analyzed your plant. How can I help you understand its condition?",
+        isAi: true,
+        timestamp: new Date(),
+        role: 'assistant'
+      };
+      setMessages([initialMessage]);
+    }
+  }, [diseaseResult]);
 
-    const newMessage: Message = {
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: Message = {
       text: input,
       isAi: false,
       timestamp: new Date(),
+      role: 'user'
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setIsLoading(true);
 
-    // Generate contextual response based on disease results
-    const aiResponse = generateResponse(input, diseaseResult);
-    setTimeout(() => {
+    try {
+      const formattedMessages = messages
+        .concat(userMessage)
+        .map(msg => ({
+          role: msg.role || (msg.isAi ? 'assistant' : 'user'),
+          content: msg.text
+        }));
+
+      const { data, error } = await supabase.functions.invoke('chat-with-deepseek', {
+        body: {
+          messages: formattedMessages,
+          diseaseInfo: diseaseResult
+        }
+      });
+
+      if (error) throw error;
+
       const aiMessage: Message = {
-        text: aiResponse,
+        text: data.response,
         isAi: true,
         timestamp: new Date(),
+        role: 'assistant'
       };
+
       setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
-  };
-
-  const generateResponse = (userInput: string, diseaseResult: DiseaseResult | null): string => {
-    if (!diseaseResult) {
-      return "Please upload a plant image first so I can provide specific advice about your plant's condition.";
+    } catch (error) {
+      console.error('Error getting response:', error);
+      const errorMessage: Message = {
+        text: "I apologize, but I encountered an error. Please try again.",
+        isAi: true,
+        timestamp: new Date(),
+        role: 'assistant'
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-
-    const disease = diseaseResult.diseases[0];
-    
-    if (!disease) {
-      return "Based on the analysis, your plant appears healthy! Is there anything specific you'd like to know about maintaining its health?";
-    }
-
-    const inputLower = userInput.toLowerCase();
-    
-    if (inputLower.includes('treatment') || inputLower.includes('cure') || inputLower.includes('fix')) {
-      return `To treat ${disease.name}, here are some recommendations: ${disease.treatment.prevention.join('. ')}`;
-    }
-    
-    if (inputLower.includes('confidence') || inputLower.includes('sure')) {
-      return `I am ${Math.round(disease.probability * 100)}% confident that your plant is affected by ${disease.name}.`;
-    }
-    
-    if (inputLower.includes('what') || inputLower.includes('problem') || inputLower.includes('issue')) {
-      return `Your plant appears to be affected by ${disease.name}. Would you like to know more about the treatment options?`;
-    }
-
-    return `I can help you understand more about the detected ${disease.name}. You can ask about treatments, confidence level, or any other specific questions about your plant's condition.`;
   };
 
   return (
@@ -112,8 +128,13 @@ const Chat: React.FC<ChatProps> = ({ diseaseResult }) => {
             placeholder="Type your message..."
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             className="flex-1"
+            disabled={isLoading}
           />
-          <Button onClick={handleSend} className="bg-primary hover:bg-primary/90">
+          <Button 
+            onClick={handleSend} 
+            className="bg-primary hover:bg-primary/90"
+            disabled={isLoading}
+          >
             <Send className="h-4 w-4" />
           </Button>
         </div>
