@@ -1,9 +1,9 @@
-
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import ImageUpload from '@/components/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Leaf, AlertCircle, Check, X } from 'lucide-react';
+import ChatInterface from '@/components/ChatInterface';
 
 interface DiseaseResult {
   diseases: Array<{
@@ -175,6 +175,8 @@ const Index = () => {
           )}
         </div>
       </div>
+      
+      <ChatInterface diseaseInfo={diseaseResult} />
     </div>
   );
 };
