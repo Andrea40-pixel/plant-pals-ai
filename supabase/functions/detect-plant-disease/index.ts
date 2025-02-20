@@ -7,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Define plant disease categories and their treatments
 const diseaseDatabase = {
   "Tomato Late Blight": {
     prevention: [
@@ -44,8 +43,7 @@ const diseaseDatabase = {
       "Apply compost tea",
       "Introduce beneficial microorganisms"
     ]
-  },
-  // Add more diseases as needed
+  }
 };
 
 serve(async (req) => {
@@ -62,7 +60,6 @@ serve(async (req) => {
 
     console.log('Processing image...');
 
-    // Call Plant.id API for disease detection
     const response = await fetch('https://api.plant.id/v2/health_assessment', {
       method: 'POST',
       headers: {
@@ -77,13 +74,12 @@ serve(async (req) => {
     });
 
     const data = await response.json();
-    console.log('API Response:', JSON.stringify(data, null, 2));
+    console.log('API Response received');
 
     if (!response.ok) {
       throw new Error(data.message || 'Failed to analyze image');
     }
 
-    // Process and enhance the API response
     const diseases = data.health_assessment.diseases.map((disease: any) => {
       const diseaseName = disease.name;
       const defaultTreatment = {
@@ -112,13 +108,12 @@ serve(async (req) => {
       };
     });
 
-    // Sort by probability and take top 3
     diseases.sort((a, b) => b.probability - a.probability);
     const result = {
       diseases: diseases.slice(0, 3)
     };
 
-    console.log('Final results:', result);
+    console.log('Analysis complete');
 
     return new Response(
       JSON.stringify({ 
