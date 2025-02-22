@@ -1,8 +1,9 @@
+
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import ImageUpload from '@/components/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Leaf, AlertCircle, Check, X } from 'lucide-react';
+import { Loader2, Leaf, AlertCircle, Check } from 'lucide-react';
 import ChatInterface from '@/components/ChatInterface';
 
 interface DiseaseResult {
@@ -50,12 +51,27 @@ const Index = () => {
 
       if (error) throw error;
 
-      setDiseaseResult(data.result);
+      // Filter results to only include high confidence predictions (above 70%)
+      const highConfidenceResults = {
+        diseases: data.result.diseases.filter(
+          (disease: any) => disease.probability > 0.7
+        )
+      };
+
+      setDiseaseResult(highConfidenceResults);
       
-      toast({
-        title: "Analysis Complete",
-        description: "We've analyzed your plant image and detected potential issues.",
-      });
+      if (highConfidenceResults.diseases.length > 0) {
+        toast({
+          title: "Analysis Complete",
+          description: "We've detected potential issues with high confidence.",
+        });
+      } else {
+        toast({
+          title: "Analysis Complete",
+          description: "No high-confidence disease detections. Your plant might be healthy!",
+          variant: "default",
+        });
+      }
     } catch (error) {
       console.error('Error analyzing image:', error);
       toast({
@@ -95,18 +111,18 @@ const Index = () => {
             </div>
           )}
           
-          {diseaseResult && !isAnalyzing && (
+          {diseaseResult && !isAnalyzing && diseaseResult.diseases.length > 0 && (
             <div className="space-y-6 animate-fadeIn">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden">
                 <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2 mb-2">
                     <AlertCircle className="h-6 w-6 text-amber-500" />
                     <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
-                      Analysis Results
+                      High Confidence Results
                     </h2>
                   </div>
                   <p className="text-gray-600 dark:text-gray-300">
-                    We've detected the following conditions in your plant:
+                    We've detected the following conditions with high confidence (>70%):
                   </p>
                 </div>
 
@@ -171,6 +187,17 @@ const Index = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {diseaseResult && !isAnalyzing && diseaseResult.diseases.length === 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 text-center">
+              <h3 className="text-xl font-medium text-gray-800 dark:text-white mb-2">
+                No High Confidence Detections
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300">
+                We couldn't detect any plant diseases with high confidence. Your plant might be healthy, but feel free to ask our chatbot for general plant care advice!
+              </p>
             </div>
           )}
         </div>
